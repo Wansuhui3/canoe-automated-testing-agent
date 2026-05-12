@@ -11,6 +11,7 @@ from src.dbc.parser import DBCParser
 from src.dbc.models import (
     DBCModel, MessageDefinition, SignalDefinition,
     ByteOrder, SignalType, ValidationResult, ValidationSeverity,
+    ValidationIssue,
 )
 from src.dbc.validator import DBCValidator
 

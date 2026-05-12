@@ -1,0 +1,87 @@
+# BCM OEM Specification
+# Simplified BCM diagnostic specification for simulation testing
+
+oem_name: BCM_Simplified
+
+naming:
+  message_prefix: "BCM_"
+  signal_prefix: "Bcm_"
+  node_prefix: ""
+  max_name_length: 32
+  separator: "_"
+
+test_rules:
+  default_cycle_time_ms: 50
+  max_wait_time_ms: 3000
+  retry_count: 3
+  tolerance_percent: 0.5
+  require_response_pending: true
+
+services:
+  0x10:
+    service_id: "0x10"
+    service_name: "DiagnosticSessionControl"
+    sub_function_required: true
+    session_required: "default"
+    timeout_ms: 2000
+    description: "Switch diagnostic session type"
+
+  0x11:
+    service_id: "0x11"
+    service_name: "ECUReset"
+    sub_function_required: true
+    session_required: "default"
+    timeout_ms: 5000
+    description: "Reset ECU to specified state"
+
+  0x22:
+    service_id: "0x22"
+    service_name: "ReadDataByIdentifier"
+    sub_function_required: false
+    session_required: "default"
+    timeout_ms: 2000
+    description: "Read data by DID"
+
+  0x27:
+    service_id: "0x27"
+    service_name: "SecurityAccess"
+    sub_function_required: true
+    security_level: 1
+    session_required: "extended"
+    timeout_ms: 2000
+    description: "Request/verify security access"
+
+  0x2E:
+    service_id: "0x2E"
+    service_name: "WriteDataByIdentifier"
+    sub_function_required: false
+    security_level: 1
+    session_required: "extended"
+    timeout_ms: 2000
+    description: "Write data by DID (requires security)"
+
+  0x31:
+    service_id: "0x31"
+    service_name: "RoutineControl"
+    sub_function_required: true
+    security_level: 1
+    session_required: "extended"
+    timeout_ms: 5000
+    description: "Start/stop/request routine"
+
+  0x19:
+    service_id: "0x19"
+    service_name: "ReadDTCInformation"
+    sub_function_required: true
+    session_required: "default"
+    timeout_ms: 3000
+    description: "Read DTC information"
+
+  0x14:
+    service_id: "0x14"
+    service_name: "ClearDTC"
+    sub_function_required: false
+    security_level: 1
+    session_required: "extended"
+    timeout_ms: 3000
+    description: "Clear all DTCs (requires security)"

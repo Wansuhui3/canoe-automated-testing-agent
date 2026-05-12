@@ -1,0 +1,22 @@
+# Core dependencies
+cantools>=39.4.0          # DBC file parsing
+pyyaml>=6.0               # YAML configuration
+jinja2>=3.1.0             # Template engine for CAPL/report generation
+networkx>=3.1             # Signal dependency graph analysis
+rich>=13.0.0              # CLI output formatting
+click>=8.1.0              # Command-line interface
+
+# Verification & reporting
+lxml>=4.9.0               # XML parsing for CANoe configurations
+openpyxl>=3.1.0           # Excel report generation
+matplotlib>=3.7.0         # Signal timing diagrams
+
+# Optional: CANoe COM interface (Windows only)
+# pywin32>=305             # Uncomment if CANoe COM API is needed
+
+# Development
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0

@@ -1,0 +1,190 @@
+/*===============================================================
+  CAPL Diagnostic Test Template
+
+  Jinja2 template for generating UDS diagnostic service
+  test CAPL scripts.
+===============================================================*/
+
+// ===============================================================
+// Script: {{ script_name }}
+// DBC: {{ dbc_filename }}
+// Generated: {{ generation_time }}
+// OEM Spec: {{ oem_spec.oem_name }}
+// ===============================================================
+
+variables {
+  // Diagnostic CAN IDs
+  message 0x700 DiagRequest;   // Tester -> ECU
+  message 0x7E8 DiagResponse;  // ECU -> Tester
+
+  // Security
+  const int SECURITY_SEED = 0x{{ "%04X" | format(security_seed) }};
+
+  // Test counters
+  long testStep = 0;
+  long passCount = 0;
+  long failCount = 0;
+  long totalTests = {{ test_cases | length }};
+
+  // Response buffer
+  byte responseBuffer[64];
+  long responseLength = 0;
+}
+
+// ===============================================================
+// System Event Handlers
+// ===============================================================
+
+on start {
+  write("=== UDS Diagnostic Test: {{ script_name }} ===");
+  write("DBC: {{ dbc_filename }}");
+  write("OEM: {{ oem_spec.oem_name }}");
+  write("Security Seed: 0x{{ "%04X" | format(security_seed) }}");
+  write("Total test cases: %d", totalTests);
+  write("");
+
+  // Wait for ECU startup
+  testWaitForTimeout(2000);
+
+  // Run all diagnostic tests
+  runDiagnosticTests();
+
+  // Report
+  write("");
+  write("=== Test Summary ===");
+  write("Passed: %d / %d", passCount, totalTests);
+  write("Failed: %d / %d", failCount, totalTests);
+}
+
+// ===============================================================
+// Response Handler
+// ===============================================================
+
+on message 0x7E8 {
+  long i;
+  responseLength = this.dlc;
+  for (i = 0; i < this.dlc; i++) {
+    responseBuffer[i] = this.byte(i);
+  }
+
+  // Check for negative response (7F SID NRC)
+  if (this.byte(0) == 0x7F) {
+    write("NRC: Service 0x%02X -> NRC 0x%02X", this.byte(1), this.byte(2));
+  }
+}
+
+// ===============================================================
+// Diagnostic Test Runner
+// ===============================================================
+
+void runDiagnosticTests() {
+{% for tc in test_cases %}
+  // ===== Test {{ loop.index }}: {{ tc.service_name }} (0x{{ "%02X" | format(tc.service_id) }}) =====
+  testStep = {{ loop.index }};
+  write("[Step {{ loop.index }}/{{ test_cases | length }}] Testing: {{ tc.service_name }} (0x{{ "%02X" | format(tc.service_id) }})");
+
+{% if tc.requires_extended_session %}
+  // Pre-condition: Enter extended diagnostic session
+  sendDiagnosticSessionControl(0x03);
+  testWaitForTimeout({{ tc.timeout_ms }});
+
+{% endif %}
+{% if tc.requires_security %}
+  // Pre-condition: Security Access
+  sendSecurityAccess();
+  testWaitForTimeout({{ tc.timeout_ms }} * 2);
+
+{% endif %}
+  // Execute {{ tc.service_name }}
+  sendService_{{ "%02X" | format(tc.service_id) }}();
+  testWaitForTimeout({{ tc.timeout_ms }});
+
+  // Verify response
+  verifyResponse_{{ "%02X" | format(tc.service_id) }}();
+
+  write("");
+
+{% endfor %}
+}
+
+// ===============================================================
+// Session Control
+// ===============================================================
+
+void sendDiagnosticSessionControl(byte sessionType) {
+  DiagRequest.dlc = 3;
+  DiagRequest.byte(0) = 0x02;  // PCI: SingleFrame, length=2
+  DiagRequest.byte(1) = 0x10;  // SID: DiagnosticSessionControl
+  DiagRequest.byte(2) = sessionType;
+  output(DiagRequest);
+  write("  -> Sent: DiagnosticSessionControl(0x%02X)", sessionType);
+}
+
+// ===============================================================
+// Security Access (Simplified)
+// ===============================================================
+
+void sendSecurityAccess() {
+  // Step 1: Request Seed
+  DiagRequest.dlc = 3;
+  DiagRequest.byte(0) = 0x02;
+  DiagRequest.byte(1) = 0x27;  // SID: SecurityAccess
+  DiagRequest.byte(2) = 0x01;  // Sub: Request Seed
+  output(DiagRequest);
+  write("  -> Sent: SecurityAccess(Request Seed)");
+  testWaitForTimeout({{ oem_spec.test_rules.default_cycle_time_ms }});
+
+  // Step 2: Send Key (simplified - use fixed seed, accept any key)
+  DiagRequest.dlc = 5;
+  DiagRequest.byte(0) = 0x04;
+  DiagRequest.byte(1) = 0x27;  // SID: SecurityAccess
+  DiagRequest.byte(2) = 0x02;  // Sub: Send Key
+  DiagRequest.byte(3) = (SECURITY_SEED >> 8) & 0xFF;
+  DiagRequest.byte(4) = SECURITY_SEED & 0xFF;
+  output(DiagRequest);
+  write("  -> Sent: SecurityAccess(Send Key: 0x%04X)", SECURITY_SEED);
+}
+
+// ===============================================================
+// Service-Specific Send Functions
+// ===============================================================
+
+{% for tc in test_cases %}
+void sendService_{{ "%02X" | format(tc.service_id) }}() {
+  DiagRequest.dlc = 2;
+  DiagRequest.byte(0) = 0x01;  // PCI: SingleFrame, length=1
+  DiagRequest.byte(1) = 0x{{ "%02X" | format(tc.service_id) }};  // SID: {{ tc.service_name }}
+{% if tc.sub_function_required %}
+  DiagRequest.byte(2) = 0x01;  // Sub-function placeholder
+  DiagRequest.dlc = 3;
+  DiagRequest.byte(0) = 0x02;
+{% endif %}
+  output(DiagRequest);
+  write("  -> Sent: {{ tc.service_name }} (0x{{ "%02X" | format(tc.service_id) }})");
+}
+
+void verifyResponse_{{ "%02X" | format(tc.service_id) }}() {
+  // Check for positive response (SID + 0x40)
+  if (responseLength > 0 && responseBuffer[1] == (0x{{ "%02X" | format(tc.service_id) }} + 0x40)) {
+    write("  PASS: {{ tc.service_name }} positive response received");
+    passCount++;
+  } else if (responseLength > 0 && responseBuffer[0] == 0x7F) {
+    write("  FAIL: {{ tc.service_name }} negative response: NRC 0x%02X", responseBuffer[2]);
+    failCount++;
+  } else {
+    write("  WARN: {{ tc.service_name }} no response or unexpected format");
+    failCount++;
+  }
+  responseLength = 0;  // Reset for next test
+}
+
+{% endfor %}
+
+// ===============================================================
+// Cleanup
+// ===============================================================
+
+on stopMeasurement {
+  write("=== UDS Diagnostic Test Stopped ===");
+  write("Final: %d passed, %d failed (total %d)", passCount, failCount, totalTests);
+}

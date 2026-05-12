@@ -1,0 +1,60 @@
+# Default Configuration
+# CANoe Automated Testing Agent
+
+# General settings
+general:
+  log_level: INFO
+  language: zh_CN
+  encoding: utf-8
+
+# DBC parsing settings
+dbc:
+  strict_mode: true       # Fail on parse errors
+  auto_fix: false         # Auto-fix non-compliant definitions
+  max_signal_bits: 64     # Maximum signal bit length
+
+# Signal analysis settings
+signal:
+  dependency_depth: 5     # Maximum dependency chain depth
+  cross_message: true     # Enable cross-message dependency detection
+  mux_gap_threshold: 3    # Warn if mux value gap exceeds this
+
+# CAPL generation settings
+capl:
+  template_dir: src/capl/templates
+  indent_size: 2
+  line_length: 120
+  add_comments: true
+  add_timestamps: true
+
+# OEM specification settings
+oem:
+  default_spec: generic
+  naming_convention:
+    max_name_length: 32
+    separator: "_"
+    signal_prefix: ""
+    message_prefix: ""
+
+# Verification settings
+verification:
+  tolerance_percent: 1.0
+  max_wait_time_ms: 5000
+  retry_count: 3
+  pass_threshold: 0.8     # 80% signals must pass
+  simulation_mode: true   # Use simulation when CANoe not available
+
+# Report settings
+report:
+  format: [html, json]
+  include_signal_timing: true
+  include_mux_coverage: true
+  html_theme: default
+
+# CANoe COM interface settings
+canoe:
+  auto_connect: true
+  timeout_ms: 10000
+  channel: 1
+  bus_type: CAN
+  baud_rate: 500000

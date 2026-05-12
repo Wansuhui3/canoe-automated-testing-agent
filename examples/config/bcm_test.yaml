@@ -1,0 +1,106 @@
+# BCM Diagnostic Test Configuration
+# CANoe Automated Testing Agent
+
+target: BCM
+dbc_file: examples/dbc/bcm_example.dbc
+protocol: UDS
+
+# Diagnostic CAN IDs
+diag:
+  request_id: 0x700
+  response_id: 0x7E8
+  functional_id: 0x7DF
+
+# UDS Services to test
+services:
+  - id: 0x10
+    name: DiagnosticSessionControl
+    sub_functions:
+      - 0x01  # Default Session
+      - 0x03  # Extended Session
+    requires_security: false
+    requires_session: default
+    timeout_ms: 2000
+
+  - id: 0x11
+    name: ECUReset
+    sub_functions:
+      - 0x01  # Hard Reset
+      - 0x03  # Soft Reset
+    requires_security: false
+    requires_session: default
+    timeout_ms: 5000
+
+  - id: 0x22
+    name: ReadDataByIdentifier
+    sub_functions: []
+    data_identifiers:
+      - 0xF1_80  # Supplier Identity
+      - 0xF1_93  # Application Software Version
+      - 0xF1_97  # ECU Serial Number
+    requires_security: false
+    requires_session: default
+    timeout_ms: 2000
+
+  - id: 0x27
+    name: SecurityAccess
+    sub_functions:
+      - 0x01  # Request Seed
+      - 0x02  # Send Key
+    requires_security: false
+    requires_session: extended
+    timeout_ms: 2000
+
+  - id: 0x2E
+    name: WriteDataByIdentifier
+    sub_functions: []
+    requires_security: true
+    requires_session: extended
+    timeout_ms: 2000
+
+  - id: 0x31
+    name: RoutineControl
+    sub_functions:
+      - 0x01  # Start Routine
+      - 0x03  # Request Results
+    requires_security: true
+    requires_session: extended
+    timeout_ms: 5000
+
+  - id: 0x19
+    name: ReadDTCInformation
+    sub_functions:
+      - 0x01  # Report Number of DTCs
+      - 0x02  # Report DTC by Status
+      - 0x04  # Report DTC Snapshot
+      - 0x06  # Report DTC Extended Data
+    requires_security: false
+    requires_session: default
+    timeout_ms: 3000
+
+  - id: 0x14
+    name: ClearDTC
+    sub_functions: []
+    requires_security: true
+    requires_session: extended
+    timeout_ms: 3000
+
+# Simplified security mechanism for BCM simulation
+security:
+  mode: simplified
+  seed: 0xA5B6
+  session_check: false
+  accept_any_key: true
+
+# Signal verification expected values
+expected_signals:
+  BCM_Status.BCM_DoorLockFL: 0.0
+  BCM_Status.BCM_BatteryVoltage: 12.5
+  EngineData.EngineSpeed: 800.0
+  EngineData.EngineTemp: 90.0
+
+# Report settings
+report:
+  format: [html, json]
+  output_dir: examples/output
+  include_signal_timing: true

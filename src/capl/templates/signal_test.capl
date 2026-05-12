@@ -1,0 +1,138 @@
+/*===============================================================
+  CAPL Signal Test Template
+
+  Jinja2 template for generating CAN signal simulation and
+  verification CAPL scripts.
+===============================================================*/
+
+// ===============================================================
+// Script: {{ script_name }}
+// DBC: {{ dbc_filename }}
+// Generated: {{ generation_time }}
+// OEM Spec: {{ oem_spec.oem_name }}
+// ===============================================================
+
+variables {
+{% for msg in messages %}
+  message 0x{{ "%04X" | format(msg.id) }} {{ msg.name }};  // {{ msg.comment or msg.sender }} -> DLC={{ msg.length }}
+{% endfor %}
+
+  // Test control
+  long testStep = 0;
+  long passCount = 0;
+  long failCount = 0;
+}
+
+// ===============================================================
+// System Event Handlers
+// ===============================================================
+
+on start {
+  write("=== Signal Simulation: {{ script_name }} ===");
+  write("DBC: {{ dbc_filename }}");
+  write("OEM: {{ oem_spec.oem_name }}");
+  write("");
+
+  // Initialize signal values
+{% for msg in messages %}
+{% for sig in msg.signals %}
+{% if sig.signal_type.value != "multiplexer" %}
+  ${{ msg.name }}::{{ sig.name }} = 0;  // {{ sig.comment or sig.unit }}
+{% endif %}
+{% endfor %}
+{% endfor %}
+
+  // Start cyclic message timers
+{% for msg in messages %}
+{% if msg.cycle_time > 0 %}
+  setTimer(cycle_{{ msg.name }}, {{ msg.cycle_time }});
+{% else %}
+  setTimer(cycle_{{ msg.name }}, {{ oem_spec.test_rules.default_cycle_time_ms }});
+{% endif %}
+{% endfor %}
+
+  // Start verification timer
+  setTimer(verify_timer, 2000);
+}
+
+on key 's' {
+  write("--- Stopping simulation ---");
+  stop();
+}
+
+on key 't' {
+  write("--- Running signal test sequence ---");
+  runSignalTestSequence();
+}
+
+// ===============================================================
+// Cyclic Message Output
+// ===============================================================
+
+{% for msg in messages %}
+on timer cycle_{{ msg.name }} {
+  output({{ msg.name }});
+{% if msg.cycle_time > 0 %}
+  setTimer(cycle_{{ msg.name }}, {{ msg.cycle_time }});
+{% else %}
+  setTimer(cycle_{{ msg.name }}, {{ oem_spec.test_rules.default_cycle_time_ms }});
+{% endif %}
+}
+
+{% endfor %}
+
+// ===============================================================
+// Signal Verification
+// ===============================================================
+
+on timer verify_timer {
+  verifyAllSignals();
+  setTimer(verify_timer, 1000);
+}
+
+void verifyAllSignals() {
+{% for msg in messages %}
+{% for sig in msg.signals %}
+  // Verify {{ sig.name }}: range [{{ sig.min_val }}, {{ sig.max_val }}] {{ sig.unit }}
+  if (${{ msg.name }}::{{ sig.name }} < {{ sig.physical_to_raw(sig.min_val) }} ||
+      ${{ msg.name }}::{{ sig.name }} > {{ sig.physical_to_raw(sig.max_val) }}) {
+    write("FAIL: {{ msg.name }}.{{ sig.name }} = %d (expected [%d, %d])",
+          ${{ msg.name }}::{{ sig.name }}, {{ sig.physical_to_raw(sig.min_val) }}, {{ sig.physical_to_raw(sig.max_val) }});
+    failCount++;
+  } else {
+    passCount++;
+  }
+{% endfor %}
+{% endfor %}
+}
+
+// ===============================================================
+// Signal Test Sequence
+// ===============================================================
+
+void runSignalTestSequence() {
+  write("--- Signal Test Sequence Started ---");
+  testStep = 0;
+
+{% for msg in messages %}
+  // Test message: {{ msg.name }} (0x{{ "%04X" | format(msg.id) }})
+{% for sig in msg.signals %}
+  // Step {{ loop.index }}: Test {{ sig.name }}
+  testStep++;
+  ${{ msg.name }}::{{ sig.name }} = {{ sig.physical_to_raw(sig.min_val) }};
+  testWaitForTimeout(100);
+  ${{ msg.name }}::{{ sig.name }} = {{ sig.physical_to_raw(sig.max_val) }};
+  testWaitForTimeout(100);
+  ${{ msg.name }}::{{ sig.name }} = 0;
+  testWaitForTimeout(100);
+{% endfor %}
+{% endfor %}
+
+  write("--- Signal Test Sequence Completed ---");
+  write("Results: %d passed, %d failed", passCount, failCount);
+}
+
+on stopMeasurement {
+  write("=== Signal Simulation Stopped ===");
+  write("Final: %d passed, %d failed", passCount, failCount);
+}
